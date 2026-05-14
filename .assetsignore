@@ -1,0 +1,14 @@
+node_modules/
+.git/
+.DS_Store
+*.log
+wrangler.jsonc
+.assetsignore
+package-lock.json
+PENDIENTES.md
+README.md
+scripts/
+
+# GMLs intermedios (regenerables desde data/*.zip)
+data/A.ES.SDGC.*.gml
+data/*.xml
