@@ -1,0 +1,201 @@
+refcat,propietario,uso,estado,en_venta,m2
+45155A00100024,Ayuntamiento,olivar,saneado,si,213
+45155A00100025,Juan Pérez,pasto,litigio,no,337
+45155A00100026,María García,edificación,vendido,no,397
+45155A00100027,Familia López,viña,en venta,no,8276
+45155A00100029,Sociedad XY,huerta,pendiente,si,1661
+45155A00100030,Sin definir,monte,saneado,no,4492
+45155A00100031,Ayuntamiento,cereal,litigio,no,2052
+45155A00100032,Juan Pérez,baldío,vendido,no,718
+45155A00100033,María García,olivar,en venta,si,1036
+45155A00100034,Familia López,pasto,pendiente,no,1020
+45155A00100035,Sociedad XY,edificación,saneado,no,2971
+45155A00100036,Sin definir,viña,litigio,no,1774
+45155A00100037,Ayuntamiento,huerta,vendido,si,2120
+45155A00100038,Juan Pérez,monte,en venta,no,521
+45155A00100039,María García,cereal,pendiente,no,692
+45155A00100040,Familia López,baldío,saneado,no,765
+45155A00100041,Sociedad XY,olivar,litigio,si,958
+45155A00100042,Sin definir,pasto,vendido,no,499
+45155A00100045,Ayuntamiento,edificación,en venta,no,408
+45155A00100046,Juan Pérez,viña,pendiente,no,502
+45155A00100047,María García,huerta,saneado,si,791
+45155A00100048,Familia López,monte,litigio,no,813
+45155A00100049,Sociedad XY,cereal,vendido,no,1974
+45155A00100050,Sin definir,baldío,en venta,no,1375
+45155A00100051,Ayuntamiento,olivar,pendiente,si,572
+45155A00100052,Juan Pérez,pasto,saneado,no,1646
+45155A00100053,María García,edificación,litigio,no,1768
+45155A00100054,Familia López,viña,vendido,no,1603
+45155A00100063,Sociedad XY,huerta,en venta,si,2191
+45155A00100066,Sin definir,monte,pendiente,no,690
+45155A00100067,Ayuntamiento,cereal,saneado,no,512
+45155A00100068,Juan Pérez,baldío,litigio,no,1016
+45155A00100069,María García,olivar,vendido,si,615
+45155A00100070,Familia López,pasto,en venta,no,15047
+45155A00100071,Sociedad XY,edificación,pendiente,no,4979
+45155A00100075,Sin definir,viña,saneado,no,3157
+45155A00100076,Ayuntamiento,huerta,litigio,si,1016
+45155A00100077,Juan Pérez,monte,vendido,no,706
+45155A00100078,María García,cereal,en venta,no,735
+45155A00100079,Familia López,baldío,pendiente,no,3932
+45155A00100080,Sociedad XY,olivar,saneado,si,4992
+45155A00100081,Sin definir,pasto,litigio,no,3795
+45155A00100082,Ayuntamiento,edificación,vendido,no,2494
+45155A00100083,Juan Pérez,viña,en venta,no,1778
+45155A00100084,María García,huerta,pendiente,si,673
+45155A00100085,Familia López,monte,saneado,no,857
+45155A00100086,Sociedad XY,cereal,litigio,no,1050
+45155A00100087,Sin definir,baldío,vendido,no,1316
+45155A00100088,Ayuntamiento,olivar,en venta,si,1249
+45155A00100089,Juan Pérez,pasto,pendiente,no,1258
+45155A00100090,María García,edificación,saneado,no,1000
+45155A00100094,Familia López,viña,litigio,no,304
+45155A00100095,Sociedad XY,huerta,vendido,si,446
+45155A00100096,Sin definir,monte,en venta,no,570
+45155A00100097,Ayuntamiento,cereal,pendiente,no,573
+45155A00100098,Juan Pérez,baldío,saneado,no,3543
+45155A00100099,María García,olivar,litigio,si,4598
+45155A00100100,Familia López,pasto,vendido,no,2042
+45155A00100101,Sociedad XY,edificación,en venta,no,4880
+45155A00100102,Sin definir,viña,pendiente,no,5201
+45155A00100103,Ayuntamiento,huerta,saneado,si,1318
+45155A00100104,Juan Pérez,monte,litigio,no,997
+45155A00100105,María García,cereal,vendido,no,1344
+45155A00100106,Familia López,baldío,en venta,no,217
+45155A00100107,Sociedad XY,olivar,pendiente,si,494
+45155A00100108,Sin definir,pasto,saneado,no,254
+45155A00100109,Ayuntamiento,edificación,litigio,no,3094
+45155A00100110,Juan Pérez,viña,vendido,no,373
+45155A00100111,María García,huerta,en venta,si,2140
+45155A00100112,Familia López,monte,pendiente,no,1404
+45155A00100113,Sociedad XY,cereal,saneado,no,2074
+45155A00100114,Sin definir,baldío,litigio,no,2590
+45155A00100115,Ayuntamiento,olivar,vendido,si,4281
+45155A00100116,Juan Pérez,pasto,en venta,no,2169
+45155A00100117,María García,edificación,pendiente,no,2285
+45155A00100118,Familia López,viña,saneado,no,2048
+45155A00100119,Sociedad XY,huerta,litigio,si,1694
+45155A00100120,Sin definir,monte,vendido,no,14068
+45155A00100121,Ayuntamiento,cereal,en venta,no,1328
+45155A00100122,Juan Pérez,baldío,pendiente,no,7030
+45155A00100123,María García,olivar,saneado,si,1459
+45155A00100124,Familia López,pasto,litigio,no,932
+45155A00100125,Sociedad XY,edificación,vendido,no,4311
+45155A00100126,Sin definir,viña,en venta,no,7120
+45155A00100127,Ayuntamiento,huerta,pendiente,si,713
+45155A00100128,Juan Pérez,monte,saneado,no,997
+45155A00100129,María García,cereal,litigio,no,1455
+45155A00100130,Familia López,baldío,vendido,no,1790
+45155A00100131,Sociedad XY,olivar,en venta,si,2240
+45155A00100132,Sin definir,pasto,pendiente,no,1403
+45155A00100133,Ayuntamiento,edificación,saneado,no,1723
+45155A00100134,Juan Pérez,viña,litigio,no,1393
+45155A00100135,María García,huerta,vendido,si,17425
+45155A00100136,Familia López,monte,en venta,no,1300
+45155A00100137,Sociedad XY,cereal,pendiente,no,1568
+45155A00100138,Sin definir,baldío,saneado,no,2503
+45155A00100139,Ayuntamiento,olivar,litigio,si,5319
+45155A00100140,Juan Pérez,pasto,vendido,no,409
+45155A00100141,María García,edificación,en venta,no,522
+45155A00100142,Familia López,viña,pendiente,no,156
+45155A00100143,Sociedad XY,huerta,saneado,si,112
+45155A00100144,Sin definir,monte,litigio,no,1256
+45155A00100145,Ayuntamiento,cereal,vendido,no,992
+45155A00100146,Juan Pérez,baldío,en venta,no,671
+45155A00100147,María García,olivar,pendiente,si,1889
+45155A00100148,Familia López,pasto,saneado,no,2169
+45155A00100149,Sociedad XY,edificación,litigio,no,2696
+45155A00100150,Sin definir,viña,vendido,no,2011
+45155A00100151,Ayuntamiento,huerta,en venta,si,1606
+45155A00100152,Juan Pérez,monte,pendiente,no,685
+45155A00100153,María García,cereal,saneado,no,913
+45155A00100154,Familia López,baldío,litigio,no,3005
+45155A00100155,Sociedad XY,olivar,vendido,si,8703
+45155A00100156,Sin definir,pasto,en venta,no,3034
+45155A00100157,Ayuntamiento,edificación,pendiente,no,4930
+45155A00100158,Juan Pérez,viña,saneado,no,3316
+45155A00100159,María García,huerta,litigio,si,3752
+45155A00100160,Familia López,monte,vendido,no,2311
+45155A00100161,Sociedad XY,cereal,en venta,no,1261
+45155A00100162,Sin definir,baldío,pendiente,no,1460
+45155A00100163,Ayuntamiento,olivar,saneado,si,884
+45155A00100164,Juan Pérez,pasto,litigio,no,754
+45155A00100165,María García,edificación,vendido,no,755
+45155A00100166,Familia López,viña,en venta,no,956
+45155A00100167,Sociedad XY,huerta,pendiente,si,5104
+45155A00100168,Sin definir,monte,saneado,no,210
+45155A00100169,Ayuntamiento,cereal,litigio,no,406
+45155A00100170,Juan Pérez,baldío,vendido,no,850
+45155A00100171,María García,olivar,en venta,si,2205
+45155A00100172,Familia López,pasto,pendiente,no,1183
+45155A00100173,Sociedad XY,edificación,saneado,no,2430
+45155A00100174,Sin definir,viña,litigio,no,12017
+45155A00100176,Ayuntamiento,huerta,vendido,si,3313
+45155A00100177,Juan Pérez,monte,en venta,no,2379
+45155A00100178,María García,cereal,pendiente,no,1606
+45155A00100179,Familia López,baldío,saneado,no,6068
+45155A00100180,Sociedad XY,olivar,litigio,si,5391
+45155A00100181,Sin definir,pasto,vendido,no,2233
+45155A00100182,Ayuntamiento,edificación,en venta,no,1056
+45155A00100183,Juan Pérez,viña,pendiente,no,1163
+45155A00100184,María García,huerta,saneado,si,1703
+45155A00100185,Familia López,monte,litigio,no,8039
+45155A00100187,Sociedad XY,cereal,vendido,no,10559
+45155A00100188,Sin definir,baldío,en venta,no,2292
+45155A00100189,Ayuntamiento,olivar,pendiente,si,2159
+45155A00100190,Juan Pérez,pasto,saneado,no,5269
+45155A00100191,María García,edificación,litigio,no,3181
+45155A00100192,Familia López,viña,vendido,no,1223
+45155A00100193,Sociedad XY,huerta,en venta,si,802
+45155A00100194,Sin definir,monte,pendiente,no,1904
+45155A00100195,Ayuntamiento,cereal,saneado,no,1153
+45155A00100197,Juan Pérez,baldío,litigio,no,1483
+45155A00100198,María García,olivar,vendido,si,1719
+45155A00100199,Familia López,pasto,en venta,no,15040
+45155A00100200,Sociedad XY,edificación,pendiente,no,8560
+45155A00100201,Sin definir,viña,saneado,no,5422
+45155A00100202,Ayuntamiento,huerta,litigio,si,4022
+45155A00100203,Juan Pérez,monte,vendido,no,12619
+45155A00100204,María García,cereal,en venta,no,1256
+45155A00100205,Familia López,baldío,pendiente,no,3017
+45155A00100206,Sociedad XY,olivar,saneado,si,1932
+45155A00100207,Sin definir,pasto,litigio,no,8555
+45155A00100208,Ayuntamiento,edificación,vendido,no,4502
+45155A00100209,Juan Pérez,viña,en venta,no,2656
+45155A00100210,María García,huerta,pendiente,si,6599
+45155A00100211,Familia López,monte,saneado,no,1391
+45155A00100212,Sociedad XY,cereal,litigio,no,12202
+45155A00100213,Sin definir,baldío,vendido,no,7985
+45155A00100214,Ayuntamiento,olivar,en venta,si,19852
+45155A00100215,Juan Pérez,pasto,pendiente,no,346
+45155A00100221,María García,edificación,saneado,no,3894
+45155A00100222,Familia López,viña,litigio,no,1514
+45155A00100223,Sociedad XY,huerta,vendido,si,1461
+45155A00100224,Sin definir,monte,en venta,no,3168
+45155A00100225,Ayuntamiento,cereal,pendiente,no,2199
+45155A00100226,Juan Pérez,baldío,saneado,no,4668
+45155A00100227,María García,olivar,litigio,si,564
+45155A00100228,Familia López,pasto,vendido,no,838
+45155A00100229,Sociedad XY,edificación,en venta,no,411
+45155A00100230,Sin definir,viña,pendiente,no,2405
+45155A00100231,Ayuntamiento,huerta,saneado,si,2357
+45155A00100232,Juan Pérez,monte,litigio,no,10213
+45155A00100233,María García,cereal,vendido,no,2048
+45155A00100234,Familia López,baldío,en venta,no,5433
+45155A00100235,Sociedad XY,olivar,pendiente,si,4440
+45155A00100236,Sin definir,pasto,saneado,no,3716
+45155A00100237,Ayuntamiento,edificación,litigio,no,2518
+45155A00100238,Juan Pérez,viña,vendido,no,4876
+45155A00100239,María García,huerta,en venta,si,2620
+45155A00100240,Familia López,monte,pendiente,no,3279
+45155A00100241,Sociedad XY,cereal,saneado,no,4039
+45155A00100242,Sin definir,baldío,litigio,no,4175
+45155A00100243,Ayuntamiento,olivar,vendido,si,19794
+45155A00100244,Juan Pérez,pasto,en venta,no,2896
+45155A00100245,María García,edificación,pendiente,no,4453
+45155A00100246,Familia López,viña,saneado,no,7392
+45155A00100247,Sociedad XY,huerta,litigio,si,9520
+45155A00100248,Sin definir,monte,vendido,no,15249
+45155A00100249,Ayuntamiento,cereal,en venta,no,2033
+45155A00100250,Juan Pérez,baldío,pendiente,no,6949

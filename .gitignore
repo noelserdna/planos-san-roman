@@ -1,0 +1,10 @@
+node_modules/
+.DS_Store
+.playwright-mcp/
+
+# Screenshots de pruebas (regenerables)
+map-*.png
+
+# GMLs intermedios (se regeneran descomprimiendo data/*.zip)
+data/A.ES.SDGC.*.gml
+data/*.xml

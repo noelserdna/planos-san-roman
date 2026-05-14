@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Parcelas — San Román de los Montes</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+<style>
+  html, body { margin: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+  #map { position: absolute; inset: 0; }
+
+  /* Panel column */
+  #panels { position: absolute; top: 12px; right: 12px; z-index: 1000; width: 300px; max-height: calc(100vh - 24px); display: flex; flex-direction: column; gap: 8px; overflow: visible; }
+  .panel { background: rgba(255,255,255,0.97); border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.2); overflow: hidden; display: flex; flex-direction: column; min-height: 0; }
+  .panel.collapsed .panel-body { display: none; }
+  .panel-header { padding: 9px 12px; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; background: #f5f5f5; border-bottom: 1px solid #e0e0e0; }
+  .panel.collapsed .panel-header { border-bottom: none; }
+  .panel-header .chev { font-size: 10px; color: #666; transition: transform .15s; }
+  .panel.collapsed .panel-header .chev { transform: rotate(-90deg); }
+  .panel-header .count { margin-left: auto; font-weight: 400; color: #999; font-size: 11px; }
+  .panel-body { padding: 10px 12px; overflow: auto; flex: 1; }
+
+  /* Datos panel internals */
+  #datosPanel label { display: block; font-size: 12px; color: #555; margin-top: 8px; }
+  #datosPanel label:first-child { margin-top: 0; }
+  #datosPanel select, #datosPanel input[type=text], #datosPanel input[type=file] { width: 100%; font-size: 12px; padding: 4px 6px; margin-top: 2px; border: 1px solid #ccc; border-radius: 4px; background: white; box-sizing: border-box; }
+  #datosPanel button { margin-top: 6px; font-size: 12px; padding: 4px 10px; cursor: pointer; border: 1px solid #ccc; border-radius: 4px; background: white; }
+  #legend { margin-top: 12px; font-size: 12px; }
+  #legend .row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+  #legend .swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.2); flex-shrink: 0; }
+  #stats { margin-top: 10px; font-size: 11px; color: #777; }
+
+  /* Capas panel internals: groups */
+  .grp { border-top: 1px solid #eee; }
+  .grp:first-child { border-top: none; }
+  .grp-header { padding: 6px 0; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; color: #333; }
+  .grp.collapsed .grp-body { display: none; }
+  .grp-header .chev { font-size: 9px; color: #888; transition: transform .15s; }
+  .grp.collapsed .grp-header .chev { transform: rotate(-90deg); }
+  .grp-header .count { margin-left: auto; font-weight: 400; color: #999; font-size: 10px; }
+  .grp-body { padding: 0 0 6px 16px; }
+  .grp-body label { display: flex; align-items: flex-start; gap: 6px; font-size: 12px; line-height: 1.35; padding: 2px 0; cursor: pointer; }
+  .grp-body label:hover { background: #f5f5f5; }
+  .grp-body input { margin-top: 3px; flex-shrink: 0; }
+
+  /* Popup */
+  .leaflet-popup-content { font-size: 12px; line-height: 1.4; max-height: 360px; overflow: auto; }
+  .leaflet-popup-content .ref { font-family: ui-monospace, Menlo, monospace; font-weight: 600; }
+  .leaflet-popup-content table { border-collapse: collapse; margin-top: 6px; width: 100%; }
+  .leaflet-popup-content td { padding: 1px 6px 1px 0; vertical-align: top; }
+  .leaflet-popup-content td:first-child { color: #777; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+
+<div id="panels">
+  <div id="datosPanel" class="panel">
+    <div class="panel-header" data-target="datosPanel">
+      <span class="chev">▼</span>
+      <span>Datos</span>
+      <span class="count" id="datosCount"></span>
+    </div>
+    <div class="panel-body">
+      <label for="csvFile">CSV de datos (refcat + columnas)</label>
+      <input id="csvFile" type="file" accept=".csv,text/csv" />
+
+      <label for="csvUrl">…o URL de CSV (Google Sheets publicado)</label>
+      <input id="csvUrl" type="text" placeholder="https://docs.google.com/.../pub?output=csv" />
+      <button id="csvUrlLoad">Cargar URL</button>
+
+      <label for="colSelect">Colorear por columna</label>
+      <select id="colSelect"><option value="">— sin datos cargados —</option></select>
+
+      <div id="legend"></div>
+      <div id="stats"></div>
+    </div>
+  </div>
+
+  <div id="capasPanel" class="panel">
+    <div class="panel-header" data-target="capasPanel">
+      <span class="chev">▼</span>
+      <span>Capas</span>
+      <span class="count" id="capasCount"></span>
+    </div>
+    <div class="panel-body" id="capasBody">
+      <!-- groups injected by JS -->
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js" crossorigin=""></script>
+<script>
+(async function () {
+  // ===== Panel collapse =====================================================
+  document.querySelectorAll('.panel-header').forEach(h => {
+    h.addEventListener('click', () => {
+      document.getElementById(h.dataset.target).classList.toggle('collapsed');
+    });
+  });
+
+  // ===== Custom layer control (replaces L.control.layers) ===================
+  const capasBody = document.getElementById('capasBody');
+  const groups = {};        // name → DOM element
+  let baseLayerName = null; // currently active base layer (radio)
+  const baseLayers = [];    // [{ label, lyr }, ...] for radio behaviour
+  let totalCount = 0;
+  const capasCountEl = document.getElementById('capasCount');
+
+  function ensureGroup(name) {
+    if (groups[name]) return groups[name];
+    const wrap = document.createElement('div');
+    wrap.className = 'grp';
+    const header = document.createElement('div');
+    header.className = 'grp-header';
+    header.innerHTML = `<span class="chev">▼</span><span>${name}</span><span class="count">0</span>`;
+    const body = document.createElement('div');
+    body.className = 'grp-body';
+    header.addEventListener('click', () => wrap.classList.toggle('collapsed'));
+    wrap.appendChild(header);
+    wrap.appendChild(body);
+    capasBody.appendChild(wrap);
+    // Default: collapse all groups except Catastro (where parcelas live)
+    if (name !== 'Catastro') wrap.classList.add('collapsed');
+    groups[name] = { wrap, body, countEl: header.querySelector('.count'), count: 0 };
+    return groups[name];
+  }
+
+  function bumpGroupCount(g) { g.count++; g.countEl.textContent = String(g.count); totalCount++; capasCountEl.textContent = totalCount + ' capas'; }
+
+  function addBaseLayer(group, label, lyr, defaultOn = false) {
+    const g = ensureGroup(group);
+    const row = document.createElement('label');
+    const input = document.createElement('input');
+    input.type = 'radio'; input.name = 'baseLayer';
+    if (defaultOn) { input.checked = true; baseLayerName = label; if (!map.hasLayer(lyr)) lyr.addTo(map); }
+    input.addEventListener('change', () => {
+      if (!input.checked) return;
+      for (const { label: l, lyr: bl } of baseLayers) if (l !== label && map.hasLayer(bl)) map.removeLayer(bl);
+      if (!map.hasLayer(lyr)) lyr.addTo(map);
+      baseLayerName = label;
+    });
+    baseLayers.push({ label, lyr, input });
+    const span = document.createElement('span');
+    span.textContent = label;
+    row.appendChild(input); row.appendChild(span);
+    g.body.appendChild(row);
+    bumpGroupCount(g);
+  }
+
+  function addOverlay(group, label, lyr, defaultOn = false) {
+    const g = ensureGroup(group);
+    const row = document.createElement('label');
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    if (defaultOn) { input.checked = true; if (!map.hasLayer(lyr)) lyr.addTo(map); }
+    input.addEventListener('change', () => {
+      if (input.checked) lyr.addTo(map);
+      else map.removeLayer(lyr);
+    });
+    const span = document.createElement('span');
+    span.textContent = label;
+    row.appendChild(input); row.appendChild(span);
+    g.body.appendChild(row);
+    bumpGroupCount(g);
+    return { input, lyr };
+  }
+
+  // ===== Map ================================================================
+  const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, attribution: '© OpenStreetMap'
+  });
+  const pnoa = L.tileLayer.wms('https://www.ign.es/wms-inspire/pnoa-ma', {
+    layers: 'OI.OrthoimageCoverage', format: 'image/jpeg',
+    transparent: false, version: '1.3.0', maxZoom: 20,
+    attribution: '© PNOA — IGN España'
+  });
+  const ignBase = L.tileLayer.wms('https://www.ign.es/wms-inspire/ign-base', {
+    layers: 'IGNBaseTodo', format: 'image/png', transparent: false, version: '1.3.0',
+    attribution: '© IGN España'
+  });
+  const ignGris = L.tileLayer.wms('https://www.ign.es/wms-inspire/ign-base', {
+    layers: 'IGNBaseTodo-gris', format: 'image/png', transparent: false, version: '1.3.0',
+    attribution: '© IGN España'
+  });
+
+  const map = L.map('map', { center: [40.04, -4.76], zoom: 14 });
+  window.__map = map;
+  L.control.scale({ imperial: false }).addTo(map);
+
+  addBaseLayer('Mapa base', 'Ortofoto PNOA (IGN)', pnoa, true);
+  addBaseLayer('Mapa base', 'OpenStreetMap', osm);
+  addBaseLayer('Mapa base', 'IGN Base (callejero)', ignBase);
+  addBaseLayer('Mapa base', 'IGN Base (gris)', ignGris);
+
+  async function fetchJsonSafe(url) {
+    try {
+      const r = await fetch(url);
+      if (!r.ok) return null;
+      return await r.json();
+    } catch { return null; }
+  }
+
+  // ===== Parcelas (Catastro) ================================================
+  const stats = document.getElementById('stats');
+  stats.textContent = 'Cargando parcelas…';
+
+  let geojson;
+  try {
+    const res = await fetch('data/parcelas.geojson');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    geojson = await res.json();
+  } catch (e) {
+    stats.textContent = 'No se pudo cargar data/parcelas.geojson — ' + e.message;
+    return;
+  }
+
+  let data = new Map();
+  let activeColumn = '';
+
+  function refcatOf(feature) {
+    const p = feature.properties || {};
+    return p.refcat || p.LOCALID || p.localId || p.nationalCadastralReference || '';
+  }
+  function colorFromString(s) {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return `hsl(${h % 360}, 65%, 55%)`;
+  }
+  function styleFeature(feature) {
+    const ref = refcatOf(feature);
+    const row = data.get(ref);
+    let fill = '#888', weight = 0.5, opacity = 0.35;
+    if (activeColumn && row && row[activeColumn] !== undefined && row[activeColumn] !== '') {
+      fill = colorFromString(String(row[activeColumn]));
+      opacity = 0.7; weight = 1;
+    } else if (data.size > 0 && row) {
+      fill = '#1976d2'; opacity = 0.4;
+    }
+    return { color: '#222', weight, fillColor: fill, fillOpacity: opacity };
+  }
+  const layer = window.__layer = L.geoJSON(geojson, {
+    style: styleFeature,
+    onEachFeature: (feature, lyr) => {
+      const ref = refcatOf(feature);
+      lyr.on('click', () => {
+        const row = data.get(ref);
+        let html = `<div><span class="ref">${ref}</span></div>`;
+        const props = feature.properties || {};
+        const rows = [];
+        for (const k of ['areaValue', 'beginLifespanVersion', 'label']) if (props[k] !== undefined) rows.push([k, props[k]]);
+        if (row) for (const k of Object.keys(row)) if (k !== 'refcat') rows.push([k, row[k]]);
+        if (rows.length) html += '<table>' + rows.map(([k,v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('') + '</table>';
+        lyr.bindPopup(html).openPopup();
+      });
+    }
+  });
+  map.fitBounds(layer.getBounds(), { padding: [20, 20] });
+  stats.textContent = `${geojson.features.length} parcelas cargadas`;
+  addOverlay('Catastro', `Parcelas (${geojson.features.length})`, layer, true);
+
+  // Other Catastro overlays
+  const [limite, edificios, zonificacion, direcciones, partes, piscinas] = await Promise.all([
+    fetchJsonSafe('data/limite.geojson'),
+    fetchJsonSafe('data/edificios.geojson'),
+    fetchJsonSafe('data/zonificacion.geojson'),
+    fetchJsonSafe('data/direcciones.geojson'),
+    fetchJsonSafe('data/partes-edificio.geojson'),
+    fetchJsonSafe('data/otras-construcciones.geojson'),
+  ]);
+
+  if (limite) {
+    const lyr = L.geoJSON(limite, {
+      style: { color: '#d32f2f', weight: 3, fill: false, dashArray: '6,4' },
+      interactive: false,
+    });
+    addOverlay('Administrativo', 'Límite municipal (IGN/OSM)', lyr, true);
+  }
+
+  if (edificios) {
+    const lyr = L.geoJSON(edificios, {
+      style: { color: '#5d4037', weight: 0.4, fillColor: '#ff9800', fillOpacity: 0.55 },
+      onEachFeature: (f, l) => {
+        const p = f.properties || {};
+        const rows = [
+          ['referencia', p.reference || p.localId],
+          ['uso', p.currentUse],
+          ['nº viviendas', p.numberOfDwellings],
+          ['nº unidades', p.numberOfBuildingUnits],
+          ['estado', p.conditionOfConstruction],
+          ['alta', p.beginLifespanVersion],
+        ].filter(([, v]) => v != null && v !== '');
+        l.bindPopup('<div><span class="ref">EDIFICIO</span></div><table>' + rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('') + '</table>');
+      },
+    });
+    addOverlay('Catastro', `Edificios (${edificios.features.length})`, lyr);
+  }
+
+  if (zonificacion) {
+    const lyr = L.geoJSON(zonificacion, {
+      style: { color: '#1565c0', weight: 2, fill: false, dashArray: '4,3' },
+      onEachFeature: (f, l) => {
+        const p = f.properties || {};
+        l.bindPopup(`<div><span class="ref">${p.LocalisedCharacterString || 'ZONA'} ${p.label || ''}</span></div><table><tr><td>localId</td><td>${p.localId || ''}</td></tr><tr><td>ref</td><td>${p.nationalCadastalZoningReference || ''}</td></tr></table>`);
+      },
+    });
+    addOverlay('Catastro', `Zonificación (${zonificacion.features.length})`, lyr);
+  }
+
+  if (direcciones) {
+    const lyr = L.geoJSON(direcciones, {
+      pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
+        radius: 3, color: '#fff', weight: 0.8, fillColor: '#1976d2', fillOpacity: 0.9,
+      }),
+      onEachFeature: (f, l) => {
+        const p = f.properties || {};
+        const refcat = (p.localId || '').split('.').pop();
+        l.bindPopup(`<div><span class="ref">Portal ${p.designator || ''}</span></div><table><tr><td>refcat</td><td>${refcat}</td></tr><tr><td>tipo</td><td>${p.specification || ''}</td></tr></table>`);
+      },
+    });
+    addOverlay('Catastro', `Direcciones / portales (${direcciones.features.length})`, lyr);
+  }
+
+  if (partes) {
+    // Color by number of floors above ground (cooler = lower, hotter = higher)
+    const floorColor = {
+      '0': '#9e9e9e',  // anexo/garaje, sin plantas habitables
+      '1': '#fdd835',  // 1 planta
+      '2': '#fb8c00',  // 2 plantas
+      '3': '#e53935',  // 3 plantas
+      '4': '#8e24aa',  // 4 plantas
+    };
+    const lyr = L.geoJSON(partes, {
+      style: (f) => {
+        const n = String(f.properties.numberOfFloorsAboveGround || '0');
+        return { color: '#222', weight: 0.3, fillColor: floorColor[n] || '#9e9e9e', fillOpacity: 0.75 };
+      },
+      onEachFeature: (f, l) => {
+        const p = f.properties || {};
+        const refcat = (p.localId || '').split('_')[0];
+        const rows = [
+          ['refcat', refcat],
+          ['parte', (p.localId || '').split('_')[1]],
+          ['plantas sobre suelo', p.numberOfFloorsAboveGround],
+          ['plantas bajo suelo', p.numberOfFloorsBelowGround],
+          ['profundidad bajo (m)', p.heightBelowGround],
+          ['estado', p.conditionOfConstruction],
+          ['alta', p.beginLifespanVersion],
+        ].filter(([, v]) => v != null && v !== '');
+        l.bindPopup('<div><span class="ref">PARTE DE EDIFICIO</span></div><table>' + rows.map(([k,v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('') + '</table>');
+      },
+    });
+    addOverlay('Catastro', `Partes de edificio / plantas (${partes.features.length})`, lyr);
+  }
+
+  if (piscinas) {
+    const lyr = L.geoJSON(piscinas, {
+      style: { color: '#01579b', weight: 1, fillColor: '#29b6f6', fillOpacity: 0.85 },
+      onEachFeature: (f, l) => {
+        const p = f.properties || {};
+        const refcat = (p.localId || '').split('_')[0];
+        const rows = [
+          ['refcat', refcat],
+          ['tipo', p.constructionNature],
+          ['alta', p.beginLifespanVersion],
+        ].filter(([, v]) => v != null && v !== '');
+        l.bindPopup('<div><span class="ref">PISCINA</span></div><table>' + rows.map(([k,v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('') + '</table>');
+      },
+    });
+    addOverlay('Catastro', `Piscinas / otras construcciones (${piscinas.features.length})`, lyr);
+  }
+
+  // ===== WMS overlays =======================================================
+  const wmsRegistry = [];
+  function registerWms({ group, label, url, layers, title, attribution = '', opacity = 0.7, infoFormat = 'application/json', defaultOn = false }) {
+    const lyr = L.tileLayer.wms(url, {
+      layers, format: 'image/png', transparent: true, version: '1.3.0', attribution, opacity,
+    });
+    addOverlay(group, label, lyr, defaultOn);
+    wmsRegistry.push({ lyr, url, layers, title, infoFormat });
+    return lyr;
+  }
+
+  // Hidrografía (IDEE/IGN)
+  registerWms({ group: 'Hidrografía', label: 'Red hidrográfica (ríos, arroyos)', url: 'https://servicios.idee.es/wms-inspire/hidrografia', layers: 'HY.Network', title: 'Red hidrográfica', attribution: '© IGN España', opacity: 0.85 });
+  registerWms({ group: 'Hidrografía', label: 'Masas de agua', url: 'https://servicios.idee.es/wms-inspire/hidrografia', layers: 'HY.PhysicalWaters.Waterbodies', title: 'Masa de agua', attribution: '© IGN España', opacity: 0.7 });
+  registerWms({ group: 'Hidrografía', label: 'Demarcaciones hidrográficas', url: 'https://sig.mapama.gob.es/arcgis/services/25830/aguaHidroDemarcaciones/MapServer/WMSServer', layers: '0', title: 'Demarcación', attribution: '© MITECO', opacity: 0.4 });
+
+  // Riesgo de inundación (SNCZI)
+  const ZI = 'https://sig.mapama.gob.es/arcgis/services/25830/WMS_AguaZI/MapServer/WMSServer';
+  registerWms({ group: 'Riesgo de inundación', label: 'T=10 años (frecuente)', url: ZI, layers: 'Z.I._frecuente', title: 'ZI T=10', attribution: '© MITECO SNCZI', opacity: 0.55 });
+  registerWms({ group: 'Riesgo de inundación', label: 'T=100 años (media)', url: ZI, layers: 'Z.I._con_probabilidad_media_u_ocasional', title: 'ZI T=100', attribution: '© MITECO SNCZI', opacity: 0.55 });
+  registerWms({ group: 'Riesgo de inundación', label: 'T=500 años (excepcional)', url: ZI, layers: 'Z.I._con_probabilidad_baja_o_excepcional', title: 'ZI T=500', attribution: '© MITECO SNCZI', opacity: 0.55 });
+  registerWms({ group: 'Riesgo de inundación', label: 'Cauces (DPH cartográfico)', url: ZI, layers: 'Cauces_con_DPH_cartográfico', title: 'DPH cartográfico', attribution: '© MITECO SNCZI', opacity: 0.7 });
+  registerWms({ group: 'Riesgo de inundación', label: 'Cauces (DPH deslindado)', url: ZI, layers: 'Cauces_con_DPH_deslindado', title: 'DPH deslindado', attribution: '© MITECO SNCZI', opacity: 0.7 });
+
+  // Naturaleza
+  const BIO = 'https://sig.mapama.gob.es/arcgis/services/25830/WMS_Biodiversidad/MapServer/WMSServer';
+  registerWms({ group: 'Naturaleza', label: 'Espacios naturales protegidos', url: BIO, layers: 'Espacios_Naturales_Protegidos', title: 'ENP', attribution: '© MITECO Biodiversidad', opacity: 0.55 });
+  registerWms({ group: 'Naturaleza', label: 'Red Natura 2000 (LIC/ZEC/ZEPA)', url: BIO, layers: 'Red_Natura_2000', title: 'Natura 2000', attribution: '© MITECO Biodiversidad', opacity: 0.55 });
+  registerWms({ group: 'Naturaleza', label: 'Inventario Esp. de Áreas Protegidas', url: BIO, layers: 'Inventario_Español_de_Áreas_Protegidas', title: 'IEAP', attribution: '© MITECO Biodiversidad', opacity: 0.5 });
+  registerWms({ group: 'Naturaleza', label: 'Mapa Forestal de España', url: 'https://sig.mapama.gob.es/arcgis/services/25830/biodivMFEWMS/MapServer/WMSServer', layers: 'Mapa_Forestal_de_España', title: 'MFE', attribution: '© MITECO MFE', opacity: 0.6 });
+  registerWms({ group: 'Naturaleza', label: 'Frecuencia incendios 2006-2015', url: BIO, layers: 'Frecuencia_de_incendios_forestales_período_2006-2015', title: 'Incendios 2006-15', attribution: '© MITECO Biodiversidad', opacity: 0.6 });
+  registerWms({ group: 'Naturaleza', label: 'Frecuencia incendios 1996-2005', url: BIO, layers: 'Frecuencia_de_incendios_forestales_período_1996-2005', title: 'Incendios 1996-05', attribution: '© MITECO Biodiversidad', opacity: 0.6 });
+
+  // Agricultura
+  registerWms({ group: 'Agricultura', label: 'SIGPAC — recintos (uso agrícola)', url: 'https://sigpac-hubcloud.es/wms', layers: 'recinto', title: 'SIGPAC', attribution: '© SIGPAC — FEGA/MAPA', opacity: 0.65 });
+  registerWms({ group: 'Agricultura', label: 'SIGPAC — cultivo declarado 2025', url: 'https://sigpac-hubcloud.es/wms', layers: 'cultivo_declarado', title: 'SIGPAC cultivo', attribution: '© SIGPAC — FEGA/MAPA', opacity: 0.65 });
+  const AGR = 'https://sig.mapama.gob.es/arcgis/services/25830/WMS_Agricultura/MapServer/WMSServer';
+  registerWms({ group: 'Agricultura', label: 'Comarca agraria', url: AGR, layers: 'Comarcas_Agrarias', title: 'Comarca agraria', attribution: '© MAPA', opacity: 0.4 });
+  registerWms({ group: 'Agricultura', label: 'Comarca ganadera', url: AGR, layers: 'Comarcas_Ganaderas', title: 'Comarca ganadera', attribution: '© MAPA', opacity: 0.4 });
+  registerWms({ group: 'Agricultura', label: 'Pluviometría media anual', url: AGR, layers: 'Pluviometría_media_anual', title: 'Pluviometría', attribution: '© MAPA', opacity: 0.55 });
+  registerWms({ group: 'Agricultura', label: 'Temperatura media anual', url: AGR, layers: 'Temperatura_media_anual', title: 'T media anual', attribution: '© MAPA', opacity: 0.55 });
+  registerWms({ group: 'Agricultura', label: 'Vías pecuarias (cañadas)', url: 'https://wms.mapama.gob.es/sig/Biodiversidad/ViasPecuarias/wms.aspx', layers: 'Red General de Vías Pecuarias', title: 'Vía pecuaria', attribution: '© MITECO', opacity: 0.85, infoFormat: 'text/html' });
+
+  // Uso del suelo
+  const LC = 'https://servicios.idee.es/wms-inspire/ocupacion-suelo';
+  registerWms({ group: 'Uso del suelo', label: 'Cubierta terrestre (LandCover)', url: LC, layers: 'LC.LandCoverSurfaces', title: 'LandCover', attribution: '© IGN España', opacity: 0.6 });
+  registerWms({ group: 'Uso del suelo', label: 'Uso del suelo existente (LandUse)', url: LC, layers: 'LU.ExistingLandUse', title: 'LandUse', attribution: '© IGN España', opacity: 0.6 });
+
+  // Geología
+  registerWms({ group: 'Geología', label: 'Mapa geológico 1:1.000.000 (IGME)', url: 'https://mapas.igme.es/gis/services/Cartografia_Geologica/IGME_Geologico_1M/MapServer/WMSServer', layers: '0,1,2,3', title: 'Geología 1M', attribution: '© IGME', opacity: 0.55 });
+
+  // Click on map → query all active WMS in parallel
+  async function queryWms(entry, latlng) {
+    if (!map.hasLayer(entry.lyr)) return null;
+    const size = map.getSize();
+    const point = map.latLngToContainerPoint(latlng);
+    const b = map.getBounds();
+    const params = new URLSearchParams({
+      SERVICE: 'WMS', VERSION: '1.3.0', REQUEST: 'GetFeatureInfo',
+      LAYERS: entry.layers, QUERY_LAYERS: entry.layers,
+      CRS: 'EPSG:4326',
+      BBOX: `${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`,
+      WIDTH: size.x, HEIGHT: size.y,
+      I: Math.round(point.x), J: Math.round(point.y),
+      INFO_FORMAT: entry.infoFormat, FEATURE_COUNT: 5,
+    });
+    try {
+      const r = await fetch(entry.url + (entry.url.includes('?') ? '&' : '?') + params);
+      const text = await r.text();
+      if (entry.infoFormat === 'application/json') {
+        try {
+          const j = JSON.parse(text);
+          return { title: entry.title, features: j.features || [] };
+        } catch { return null; }
+      }
+      const bm = text.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+      const inner = (bm ? bm[1] : text).trim();
+      if (!inner || /no features were found/i.test(inner)) return null;
+      return { title: entry.title, html: inner };
+    } catch { return null; }
+  }
+
+  map.on('click', async (e) => {
+    const activeEntries = wmsRegistry.filter(en => map.hasLayer(en.lyr));
+    if (!activeEntries.length) return;
+    const results = (await Promise.all(activeEntries.map(en => queryWms(en, e.latlng)))).filter(Boolean);
+    const sections = [];
+    for (const r of results) {
+      if (r.html) {
+        sections.push(`<div><span class="ref">${r.title}</span></div>${r.html}`);
+      } else if (r.features && r.features.length) {
+        const p = r.features[0].properties || {};
+        const rows = Object.entries(p)
+          .filter(([k, v]) => v != null && v !== '' && !/^id$|^the_geom|geom/i.test(k))
+          .slice(0, 12)
+          .map(([k, v]) => `<tr><td>${k}</td><td>${typeof v === 'object' ? JSON.stringify(v) : v}</td></tr>`).join('');
+        sections.push(`<div><span class="ref">${r.title}</span></div><table>${rows}</table>`);
+      }
+    }
+    if (!sections.length) return;
+    L.popup({ maxWidth: 380 })
+      .setLatLng(e.latlng)
+      .setContent(sections.join('<hr style="margin:8px 0;border:none;border-top:1px solid #ddd"/>'))
+      .openOn(map);
+  });
+
+  // ===== CSV loading ========================================================
+  function applyCsvText(text) {
+    const parsed = Papa.parse(text, { header: true, skipEmptyLines: true, dynamicTyping: false });
+    const rows = parsed.data;
+    if (!rows.length) { alert('CSV vacío'); return; }
+    const fields = parsed.meta.fields || Object.keys(rows[0]);
+    const refField = fields.find(f => /refcat|ref_catastral|referencia/i.test(f)) || fields[0];
+    data = new Map();
+    for (const r of rows) {
+      const ref = String(r[refField] || '').trim();
+      if (ref) data.set(ref, r);
+    }
+    const sel = document.getElementById('colSelect');
+    sel.innerHTML = '';
+    const noneOpt = document.createElement('option');
+    noneOpt.value = ''; noneOpt.textContent = '— sin colorear —';
+    sel.appendChild(noneOpt);
+    for (const f of fields) {
+      if (f === refField) continue;
+      const o = document.createElement('option');
+      o.value = f; o.textContent = f;
+      sel.appendChild(o);
+    }
+    activeColumn = '';
+    layer.setStyle(styleFeature);
+    renderLegend();
+    stats.textContent = `${geojson.features.length} parcelas · ${data.size} filas en CSV · clave: "${refField}"`;
+  }
+
+  document.getElementById('csvFile').addEventListener('change', e => {
+    const f = e.target.files[0]; if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => applyCsvText(reader.result);
+    reader.readAsText(f);
+  });
+  document.getElementById('csvUrlLoad').addEventListener('click', async () => {
+    const url = document.getElementById('csvUrl').value.trim();
+    if (!url) return;
+    try {
+      const r = await fetch(url);
+      applyCsvText(await r.text());
+    } catch (e) { alert('Error cargando URL: ' + e.message); }
+  });
+  document.getElementById('colSelect').addEventListener('change', e => {
+    activeColumn = e.target.value;
+    layer.setStyle(styleFeature);
+    renderLegend();
+  });
+  function renderLegend() {
+    const legend = document.getElementById('legend');
+    legend.innerHTML = '';
+    if (!activeColumn) return;
+    const counts = new Map();
+    for (const [, row] of data) {
+      const v = row[activeColumn] ?? '';
+      counts.set(v, (counts.get(v) || 0) + 1);
+    }
+    const entries = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12);
+    const title = document.createElement('div');
+    title.style.fontWeight = '600';
+    title.textContent = activeColumn;
+    legend.appendChild(title);
+    for (const [v, n] of entries) {
+      const row = document.createElement('div'); row.className = 'row';
+      const sw = document.createElement('span'); sw.className = 'swatch';
+      sw.style.background = v === '' ? '#888' : colorFromString(String(v));
+      const label = document.createElement('span');
+      label.textContent = `${v || '(vacío)'} — ${n}`;
+      row.appendChild(sw); row.appendChild(label);
+      legend.appendChild(row);
+    }
+  }
+})();
+</script>
+</body>
+</html>
