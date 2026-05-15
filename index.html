@@ -29,6 +29,21 @@
   #legend .row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
   #legend .swatch { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.2); flex-shrink: 0; }
   #stats { margin-top: 10px; font-size: 11px; color: #777; }
+  #quality { margin-top: 10px; font-size: 12px; }
+  #quality .q-title { font-weight: 600; margin-bottom: 4px; }
+  #quality .q-row { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 3px 0; border-bottom: 1px dashed rgba(0,0,0,0.08); }
+  #quality .q-row.ok { color: #137a3d; }
+  #quality .q-row.warn { color: #b07418; }
+  #quality .q-row.err { color: #b32525; font-weight: 600; }
+  #quality .q-actions { display: flex; gap: 4px; }
+  #quality button { font-size: 11px; padding: 2px 6px; cursor: pointer; background: #f5f5f5; border: 1px solid #ccc; border-radius: 3px; }
+  #quality button:hover { background: #e8e8e8; }
+  #quality .q-detail { display: none; max-height: 220px; overflow: auto; margin-top: 6px; padding: 6px; background: #fafafa; border: 1px solid #ddd; border-radius: 3px; font-family: ui-monospace, monospace; font-size: 11px; }
+  #quality .q-detail.open { display: block; }
+  #quality .q-detail .item { padding: 2px 0; border-bottom: 1px dotted #ddd; }
+  #quality .q-detail .item:last-child { border-bottom: 0; }
+  #quality .q-detail .ref { color: #444; font-weight: 600; }
+  #quality .q-detail .meta { color: #888; }
 
   /* Capas panel internals: groups */
   .grp { border-top: 1px solid #eee; }
@@ -78,6 +93,7 @@
 
       <div id="legend"></div>
       <div id="stats"></div>
+      <div id="quality"></div>
     </div>
   </div>
 
@@ -568,17 +584,77 @@
   });
 
   // ===== CSV loading ========================================================
+  let csvFields = [];     // columnas detectadas
+  let csvRefField = '';   // nombre de la columna refcat
+  let qualityReport = null; // { orphans, duplicates, empties, missing, csvRowCount, matched }
+
   function applyCsvText(text) {
     const parsed = Papa.parse(text, { header: true, skipEmptyLines: true, dynamicTyping: false });
     const rows = parsed.data;
     if (!rows.length) { alert('CSV vacío'); return; }
     const fields = parsed.meta.fields || Object.keys(rows[0]);
     const refField = fields.find(f => /refcat|ref_catastral|referencia/i.test(f)) || fields[0];
-    data = new Map();
-    for (const r of rows) {
-      const ref = String(r[refField] || '').trim();
-      if (ref) data.set(ref, r);
+    csvFields = fields;
+    csvRefField = refField;
+
+    // Construir set de refcat válidas desde el geojson. Probamos refcat completo
+    // y los primeros 14 chars (parcela) para tolerar CSV que vengan con refcat 20.
+    const validFull = new Set();
+    const valid14 = new Set();
+    for (const f of geojson.features) {
+      const r = refcatOf(f);
+      if (!r) continue;
+      validFull.add(String(r).trim());
+      valid14.add(String(r).trim().slice(0, 14));
     }
+
+    data = new Map();
+    const orphans = [];      // { rowIdx, ref, row } — refcat no existe en geojson
+    const duplicates = [];   // { rowIdx, ref, row, firstIdx } — refcat ya estaba
+    const empties = [];      // { rowIdx, row } — refcat vacío
+    const matchedRefs = new Set();
+    const seen = new Map();  // ref → primer rowIdx
+
+    rows.forEach((r, idx) => {
+      const rawRef = String(r[refField] || '').trim();
+      if (!rawRef) {
+        empties.push({ rowIdx: idx + 2, row: r }); // +2: header + 1-based
+        return;
+      }
+      // Normalizar: si la refcat del CSV es 20 chars y las del geojson son 14,
+      // intentamos contra los 14 primeros.
+      let normRef = rawRef;
+      let inValid = validFull.has(rawRef);
+      if (!inValid && rawRef.length > 14 && valid14.has(rawRef.slice(0, 14))) {
+        normRef = rawRef.slice(0, 14);
+        inValid = true;
+      }
+      if (!inValid) {
+        orphans.push({ rowIdx: idx + 2, ref: rawRef, row: r });
+        return;
+      }
+      if (seen.has(normRef)) {
+        duplicates.push({ rowIdx: idx + 2, ref: normRef, row: r, firstIdx: seen.get(normRef) });
+        return;
+      }
+      seen.set(normRef, idx + 2);
+      data.set(normRef, r);
+      matchedRefs.add(normRef);
+    });
+
+    const missing = []; // parcelas sin fila en CSV
+    for (const f of geojson.features) {
+      const r = String(refcatOf(f) || '').trim();
+      if (r && !matchedRefs.has(r)) missing.push(r);
+    }
+
+    qualityReport = {
+      csvRowCount: rows.length,
+      matched: data.size,
+      orphans, duplicates, empties, missing,
+      geojsonRowCount: geojson.features.length
+    };
+
     const sel = document.getElementById('colSelect');
     sel.innerHTML = '';
     const noneOpt = document.createElement('option');
@@ -594,7 +670,120 @@
     activeBins = null;
     layer.setStyle(styleFeature);
     renderLegend();
-    stats.textContent = `${geojson.features.length} parcelas · ${data.size} filas en CSV · clave: "${refField}"`;
+    stats.textContent = `${geojson.features.length} parcelas · ${data.size} filas matcheadas · clave: "${refField}"`;
+    renderQuality();
+  }
+
+  function renderQuality() {
+    const el = document.getElementById('quality');
+    el.innerHTML = '';
+    if (!qualityReport) return;
+    const q = qualityReport;
+
+    const title = document.createElement('div');
+    title.className = 'q-title';
+    title.textContent = 'Calidad del cruce';
+    el.appendChild(title);
+
+    const rows = [
+      { label: 'Filas matcheadas', count: q.matched, kind: 'ok', list: null, kindKey: 'matched' },
+      { label: 'Huérfanas (refcat no existe)', count: q.orphans.length, kind: q.orphans.length ? 'err' : 'ok', list: q.orphans, kindKey: 'orphans' },
+      { label: 'Duplicadas (mismo refcat)', count: q.duplicates.length, kind: q.duplicates.length ? 'warn' : 'ok', list: q.duplicates, kindKey: 'duplicates' },
+      { label: 'Vacías (sin refcat)', count: q.empties.length, kind: q.empties.length ? 'warn' : 'ok', list: q.empties, kindKey: 'empties' },
+      { label: 'Parcelas sin CSV', count: q.missing.length, kind: q.missing.length ? 'warn' : 'ok', list: q.missing, kindKey: 'missing' }
+    ];
+
+    for (const r of rows) {
+      const row = document.createElement('div');
+      row.className = 'q-row ' + r.kind;
+      const txt = document.createElement('span');
+      txt.textContent = `${r.label}: ${r.count}`;
+      row.appendChild(txt);
+      const actions = document.createElement('div');
+      actions.className = 'q-actions';
+      if (r.list && r.count > 0) {
+        const seeBtn = document.createElement('button');
+        seeBtn.textContent = 'Ver';
+        seeBtn.title = 'Mostrar listado';
+        const expBtn = document.createElement('button');
+        expBtn.textContent = '↓';
+        expBtn.title = 'Exportar CSV';
+        const detailId = 'qd-' + r.kindKey;
+        seeBtn.addEventListener('click', () => {
+          const d = document.getElementById(detailId);
+          d.classList.toggle('open');
+          if (d.classList.contains('open') && !d.innerHTML) d.innerHTML = renderDetailHTML(r.kindKey, r.list);
+        });
+        expBtn.addEventListener('click', () => exportProblemCsv(r.kindKey, r.list));
+        actions.appendChild(seeBtn); actions.appendChild(expBtn);
+      }
+      row.appendChild(actions);
+      el.appendChild(row);
+
+      if (r.list && r.count > 0) {
+        const det = document.createElement('div');
+        det.id = 'qd-' + r.kindKey;
+        det.className = 'q-detail';
+        el.appendChild(det);
+      }
+    }
+  }
+
+  function renderDetailHTML(kind, list) {
+    // Para missing: list es array de refcat strings
+    if (kind === 'missing') {
+      const sample = list.slice(0, 200);
+      return sample.map(ref => `<div class="item"><span class="ref">${ref}</span></div>`).join('')
+        + (list.length > sample.length ? `<div class="meta">… y ${list.length - sample.length} más. Usa "↓" para exportar todas.</div>` : '');
+    }
+    const sample = list.slice(0, 200);
+    return sample.map(item => {
+      const ref = item.ref ?? '(vacío)';
+      const extras = [];
+      if (item.firstIdx) extras.push(`primera vez en línea ${item.firstIdx}`);
+      const colsMuestra = csvFields.filter(f => f !== csvRefField).slice(0, 3);
+      const valores = colsMuestra.map(c => `${c}=${item.row[c] || ''}`).join('  ');
+      const meta = `<div class="meta">línea ${item.rowIdx}${extras.length ? ' · ' + extras.join(' · ') : ''}${valores ? ' · ' + valores : ''}</div>`;
+      return `<div class="item"><span class="ref">${ref}</span>${meta}</div>`;
+    }).join('')
+      + (list.length > sample.length ? `<div class="meta">… y ${list.length - sample.length} más. Usa "↓" para exportar todas.</div>` : '');
+  }
+
+  function csvEscape(v) {
+    if (v == null) return '';
+    const s = String(v);
+    return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  function downloadText(filename, text) {
+    const blob = new Blob([text], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+  }
+  function exportProblemCsv(kind, list) {
+    let csv = '';
+    if (kind === 'missing') {
+      csv = 'refcat\n' + list.map(r => csvEscape(r)).join('\n') + '\n';
+      downloadText(`parcelas-sin-csv.csv`, csv);
+      return;
+    }
+    // orphans / duplicates / empties: preservar columnas originales + meta
+    const header = ['_linea', '_motivo'].concat(csvFields);
+    if (kind === 'duplicates') header.push('_primera_linea');
+    csv = header.join(',') + '\n';
+    for (const item of list) {
+      const baseRow = item.row || {};
+      const cells = [
+        csvEscape(item.rowIdx),
+        csvEscape(kind),
+        ...csvFields.map(f => csvEscape(baseRow[f]))
+      ];
+      if (kind === 'duplicates') cells.push(csvEscape(item.firstIdx));
+      csv += cells.join(',') + '\n';
+    }
+    downloadText(`csv-${kind}.csv`, csv);
   }
 
   document.getElementById('csvFile').addEventListener('change', e => {
