@@ -2,7 +2,9 @@
 
 Registro de fuentes y capas que se probaron o se mencionaron pero **no se integraron** en `index.html`, con motivo y posible camino de resolución.
 
-Última actualización: 2026-05-14.
+Última actualización: 2026-05-15.
+
+**Cambio 2026-05-15**: `data/limite.geojson` ahora viene del **WFS oficial IGN** (Líneas Límite Jurisdiccionales), no de OSM/Nominatim como antes. Se ha añadido también `data/limite-catastro.geojson` como capa adicional (contorno derivado del Catastro). La versión OSM se preserva en `data/limite-osm.geojson` para referencia histórica.
 
 ---
 

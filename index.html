@@ -261,8 +261,9 @@
   addOverlay('Catastro', `Parcelas (${geojson.features.length})`, layer, true);
 
   // Other Catastro overlays
-  const [limite, edificios, zonificacion, direcciones, partes, piscinas] = await Promise.all([
+  const [limite, limiteCatastro, edificios, zonificacion, direcciones, partes, piscinas] = await Promise.all([
     fetchJsonSafe('data/limite.geojson'),
+    fetchJsonSafe('data/limite-catastro.geojson'),
     fetchJsonSafe('data/edificios.geojson'),
     fetchJsonSafe('data/zonificacion.geojson'),
     fetchJsonSafe('data/direcciones.geojson'),
@@ -273,9 +274,36 @@
   if (limite) {
     const lyr = L.geoJSON(limite, {
       style: { color: '#d32f2f', weight: 3, fill: false, dashArray: '6,4' },
-      interactive: false,
+      interactive: true,
+      onEachFeature: (f, l) => {
+        const p = f.properties || {};
+        l.bindPopup('<div><span class="ref">LÍMITE JURÍDICO OFICIAL</span></div>' +
+          '<table>' +
+          `<tr><td>fuente</td><td>${p.source || 'IGN'}</td></tr>` +
+          `<tr><td>autoritativo</td><td>sí (líneas límite jurisdiccionales)</td></tr>` +
+          `<tr><td>código IGN</td><td>${p.nationalCode || ''}</td></tr>` +
+          `<tr><td>obtenido</td><td>${p.retrievedAt || ''}</td></tr>` +
+          '</table>');
+      },
     });
-    addOverlay('Administrativo', 'Límite municipal (IGN/OSM)', lyr, true);
+    addOverlay('Administrativo', 'Límite oficial — IGN (jurídico)', lyr, true);
+  }
+
+  if (limiteCatastro) {
+    const lyr = L.geoJSON(limiteCatastro, {
+      style: { color: '#00838f', weight: 1.5, fill: false, dashArray: '2,4', opacity: 0.85 },
+      interactive: true,
+      onEachFeature: (f, l) => {
+        const p = f.properties || {};
+        l.bindPopup('<div><span class="ref">CONTORNO CATASTRAL (derivado)</span></div>' +
+          '<table>' +
+          `<tr><td>fuente</td><td>${p.source || 'Catastro DGC'}</td></tr>` +
+          `<tr><td>autoritativo</td><td>NO — derivado por unión de parcelas</td></tr>` +
+          `<tr><td>nota</td><td style="white-space:normal;max-width:240px;">${p.note || ''}</td></tr>` +
+          '</table>');
+      },
+    });
+    addOverlay('Administrativo', 'Contorno catastral (DGC, derivado)', lyr);
   }
 
   if (edificios) {
