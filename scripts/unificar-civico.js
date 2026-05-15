@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 /*
- * Unifica IBIU 2024 + Padrón Tasas + Padrón Habitantes.
+ * Unifica IBIU 2024 + Padrón Habitantes.
  *
  * Entradas:
  *   data/IBIU 2024.xls
- *   data/PADRON TASAS PROPIEDAD INMOBILIARIA (2).xls
  *   data/listadoHabitantesListados.xlsx
  *   data/direcciones.geojson           (generado por build-direcciones-enriquecidas.js)
  *
@@ -30,7 +29,6 @@ const PRIV = path.join(DATA, '_privado');
 fs.mkdirSync(PRIV, { recursive: true });
 
 const F_IBIU = path.join(DATA, 'IBIU 2024.xls');
-const F_PAD  = path.join(DATA, 'PADRON TASAS PROPIEDAD INMOBILIARIA (2).xls');
 const F_HAB  = path.join(DATA, 'listadoHabitantesListados.xlsx');
 const F_DIR  = path.join(DATA, 'direcciones.geojson');
 const F_PARC = path.join(DATA, 'parcelas.geojson');
@@ -95,32 +93,17 @@ function writeCsv(file, rows, columns) {
 
 console.log('▶ Cargando XLS/XLSX y direcciones enriquecidas…');
 const ibiu = XLSX.utils.sheet_to_json(XLSX.readFile(F_IBIU).Sheets['IBIU'], { defval: '' });
-const padron = XLSX.utils.sheet_to_json(XLSX.readFile(F_PAD).Sheets['Padron'], { defval: '' });
 const habit = XLSX.utils.sheet_to_json(XLSX.readFile(F_HAB).Sheets['Sheet1'], { defval: '' });
 const direcciones = JSON.parse(fs.readFileSync(F_DIR, 'utf8'));
-console.log(`  IBIU: ${ibiu.length}  ·  Padrón Tasas: ${padron.length}  ·  Habitantes: ${habit.length}  ·  Portales: ${direcciones.features.length}`);
+console.log(`  IBIU: ${ibiu.length}  ·  Habitantes: ${habit.length}  ·  Portales: ${direcciones.features.length}`);
 
-// ---------- 1) Padrón Tasas agregado por refcat20 ----------
-
-const tasasPorRef20 = new Map();
-for (const r of padron) {
-  const ref20 = String(r.Ref_Catastral_Fin || '').trim().toUpperCase();
-  if (!ref20) continue;
-  const imp = Number(String(r.Importe_Conc || 0).replace(',', '.')) || 0;
-  const acc = tasasPorRef20.get(ref20) || { importeCent: 0, registros: 0 };
-  acc.importeCent += imp;
-  acc.registros += 1;
-  tasasPorRef20.set(ref20, acc);
-}
-
-// ---------- 2) Unidades catastrales (IBIU + Tasas) ----------
+// ---------- 2) Unidades catastrales (IBIU) ----------
 
 const unidades = [];
 const unidadesPriv = []; // con NIF/nombre
 for (const r of ibiu) {
   const ref20 = String(r.REF_CATASTRAL || '').trim().toUpperCase();
   if (!ref20) continue;
-  const tasas = tasasPorRef20.get(ref20);
 
   const publico = {
     refcat: ref20,
@@ -141,10 +124,7 @@ for (const r of ibiu) {
     tipo_impositivo: r.TIPO_IMPOSIT_RECA || '',
     cuota_ibi_eur: toEuro(r.CUOTA),
     exento: r.EXENTO || '',
-    bonificado: (r.BON && String(r.BON).trim()) || '',
-    tasa_basura_eur: tasas ? toEuro(tasas.importeCent) : '',
-    tasa_basura_registros: tasas ? tasas.registros : 0,
-    tiene_padron_tasas: tasas ? 1 : 0
+    bonificado: (r.BON && String(r.BON).trim()) || ''
   };
   unidades.push(publico);
 
@@ -165,10 +145,6 @@ for (const r of ibiu) {
 const ref20Counts = new Map();
 for (const u of unidades) ref20Counts.set(u.refcat, (ref20Counts.get(u.refcat) || 0) + 1);
 const dupsIbiu = [...ref20Counts.entries()].filter(([_, n]) => n > 1).length;
-
-const sinTasas = unidades.filter(u => !u.tiene_padron_tasas).length;
-const refsIbiuSet20 = new Set(unidades.map(u => u.refcat));
-const tasasHuérfanas = [...tasasPorRef20.keys()].filter(k => !refsIbiuSet20.has(k)).length;
 
 // ---------- 3) Índice direcciones.geojson (sigla + nombre + portal) → refcat14 ----------
 
@@ -384,7 +360,6 @@ for (const u of unidades) {
     valor_suelo_eur: 0,
     valor_construccion_eur: 0,
     cuota_ibi_eur: 0,
-    tasa_basura_eur: 0,
     usos: new Map(),
     n_exentos: 0,
     n_bonificados: 0,
@@ -395,7 +370,6 @@ for (const u of unidades) {
   acc.valor_suelo_eur += Number(u.valor_suelo_eur || 0);
   acc.valor_construccion_eur += Number(u.valor_construccion_eur || 0);
   acc.cuota_ibi_eur += Number(u.cuota_ibi_eur || 0);
-  acc.tasa_basura_eur += Number(u.tasa_basura_eur || 0);
   acc.usos.set(u.uso || '(sin uso)', (acc.usos.get(u.uso || '(sin uso)') || 0) + 1);
   if (String(u.exento).toUpperCase() === 'S') acc.n_exentos += 1;
   if (u.bonificado && u.bonificado !== '0') acc.n_bonificados += 1;
@@ -413,8 +387,6 @@ for (const [ref14, p] of parcelas) {
     valor_suelo_eur: p.valor_suelo_eur.toFixed(2),
     valor_construccion_eur: p.valor_construccion_eur.toFixed(2),
     cuota_ibi_eur: p.cuota_ibi_eur.toFixed(2),
-    tasa_basura_eur: p.tasa_basura_eur.toFixed(2),
-    coste_municipal_total_eur: (p.cuota_ibi_eur + p.tasa_basura_eur).toFixed(2),
     uso_dominante: usos[0] ? usos[0][0] : '',
     es_mixta: usos.length > 1 ? 1 : 0,
     n_exentos: p.n_exentos,
@@ -438,10 +410,10 @@ const habCalleRows = [...habitantesPorCalle.entries()]
 
 console.log('▶ Construyendo DB privada (PII)…');
 
-// 7a) Inmuebles con titular (IBIU enriquecido + tasas)
+// 7a) Inmuebles con titular (IBIU enriquecido)
 writeCsv(path.join(PRIV, 'inmuebles_titular.csv'), unidadesPriv, [
   'refcat', 'refcat_parcela', 'sigla_via', 'via', 'planta', 'puerta', 'escalera',
-  'uso', 'valor_catastral_eur', 'cuota_ibi_eur', 'tasa_basura_eur',
+  'uso', 'valor_catastral_eur', 'cuota_ibi_eur',
   'nif', 'titular', 'personalidad', 'porc_participacion',
   'domicilio_fiscal', 'municipio_fiscal', 'provincia_fiscal', 'cp_fiscal'
 ]);
@@ -463,12 +435,10 @@ function bump(dni, src, payload) {
     nombres_observados: new Set(),
     en_padron_habitantes: 0,
     en_ibiu_titular: 0,
-    en_padron_tasas_titular: 0,
     n_inmuebles_ibiu: 0,
     refcat20_titular: new Set(),
     valor_catastral_total_eur: 0,
     cuota_ibi_total_eur: 0,
-    tasa_basura_total_eur: 0,
     fecha_nacimiento: '',
     direcciones_residencia: new Set()
   };
@@ -484,10 +454,6 @@ function bump(dni, src, payload) {
     p.refcat20_titular.add(payload.refcat);
     p.valor_catastral_total_eur += Number(payload.valor) || 0;
     p.cuota_ibi_total_eur += Number(payload.cuota) || 0;
-    p.tasa_basura_total_eur += Number(payload.tasa) || 0;
-  } else if (src === 'pad') {
-    p.en_padron_tasas_titular += 1;
-    if (payload.nombre) p.nombres_observados.add(payload.nombre);
   }
   personas.set(k, p);
 }
@@ -504,12 +470,8 @@ for (const u of unidadesPriv) {
     nombre: u.titular,
     refcat: u.refcat,
     valor: u.valor_catastral_eur,
-    cuota: u.cuota_ibi_eur,
-    tasa: u.tasa_basura_eur
+    cuota: u.cuota_ibi_eur
   });
-}
-for (const r of padron) {
-  bump(r.NIF_SP_OT, 'pad', { nombre: r.Nombre_SP });
 }
 
 const personasRows = [...personas.values()].map(p => ({
@@ -518,12 +480,10 @@ const personasRows = [...personas.values()].map(p => ({
   fecha_nacimiento: p.fecha_nacimiento,
   en_padron_habitantes: p.en_padron_habitantes,
   en_ibiu_titular: p.en_ibiu_titular,
-  en_padron_tasas_titular: p.en_padron_tasas_titular,
   n_inmuebles_ibiu: p.n_inmuebles_ibiu,
   refcat20_titular: [...p.refcat20_titular].join(';'),
   valor_catastral_total_eur: p.valor_catastral_total_eur.toFixed(2),
   cuota_ibi_total_eur: p.cuota_ibi_total_eur.toFixed(2),
-  tasa_basura_total_eur: p.tasa_basura_total_eur.toFixed(2),
   direcciones_residencia: [...p.direcciones_residencia].join(' | '),
   empadronado_y_propietario: (p.en_padron_habitantes > 0 && p.en_ibiu_titular > 0) ? 1 : 0,
   propietario_no_residente: (p.en_padron_habitantes === 0 && p.en_ibiu_titular > 0) ? 1 : 0,
@@ -532,9 +492,9 @@ const personasRows = [...personas.values()].map(p => ({
 
 writeCsv(path.join(PRIV, 'personas_dni.csv'), personasRows, [
   'documento', 'nombres_observados', 'fecha_nacimiento',
-  'en_padron_habitantes', 'en_ibiu_titular', 'en_padron_tasas_titular',
+  'en_padron_habitantes', 'en_ibiu_titular',
   'n_inmuebles_ibiu', 'refcat20_titular',
-  'valor_catastral_total_eur', 'cuota_ibi_total_eur', 'tasa_basura_total_eur',
+  'valor_catastral_total_eur', 'cuota_ibi_total_eur',
   'direcciones_residencia',
   'empadronado_y_propietario', 'propietario_no_residente', 'residente_no_propietario'
 ]);
@@ -545,14 +505,13 @@ writeCsv(path.join(DATA, 'unidades_catastrales.csv'), unidades, [
   'refcat', 'refcat_parcela', 'municipio', 'sigla_via', 'via', 'planta', 'puerta', 'escalera',
   'clase_bien', 'uso', 'clave_uso',
   'valor_catastral_eur', 'valor_suelo_eur', 'valor_construccion_eur', 'base_liquidable_eur',
-  'tipo_impositivo', 'cuota_ibi_eur', 'exento', 'bonificado',
-  'tasa_basura_eur', 'tasa_basura_registros', 'tiene_padron_tasas'
+  'tipo_impositivo', 'cuota_ibi_eur', 'exento', 'bonificado'
 ]);
 
 writeCsv(path.join(DATA, 'parcelas_agregadas.csv'), parcelasRows, [
   'refcat', 'n_unidades', 'uso_dominante', 'es_mixta',
   'valor_catastral_eur', 'valor_suelo_eur', 'valor_construccion_eur',
-  'cuota_ibi_eur', 'tasa_basura_eur', 'coste_municipal_total_eur',
+  'cuota_ibi_eur',
   'n_exentos', 'n_bonificados',
   'habitantes_estimados', 'densidad_hab_por_unidad',
   'via_referencia'
@@ -566,7 +525,6 @@ writeCsv(path.join(DATA, 'habitantes_por_calle.csv'), habCalleRows, [
 
 const totalValorCat = parcelasRows.reduce((s, p) => s + Number(p.valor_catastral_eur), 0);
 const totalIbi = parcelasRows.reduce((s, p) => s + Number(p.cuota_ibi_eur), 0);
-const totalTasa = parcelasRows.reduce((s, p) => s + Number(p.tasa_basura_eur), 0);
 const totalHabAsig = parcelasRows.reduce((s, p) => s + Number(p.habitantes_estimados), 0);
 
 const usosTop = new Map();
@@ -584,14 +542,11 @@ const report = [
   '## Resumen de entradas',
   '',
   `- **IBIU 2024**: ${ibiu.length} unidades (${unidades.length} con REF_CATASTRAL · ${dupsIbiu} refcat con cotitulares)`,
-  `- **Padrón Tasas**: ${padron.length} registros · 100 % "RECOGIDA BASURAS" · ${tasasPorRef20.size} unidades únicas`,
   `- **Padrón Habitantes**: ${totalAlta} personas en Alta · ${habitantesPorCalle.size} calles distintas en el listado`,
   `- **direcciones.geojson**: ${direcciones.features.length} portales con calle + refcat14`,
   '',
   '## Cruces',
   '',
-  `- IBIU ↔ Padrón Tasas: ${unidades.length - sinTasas}/${unidades.length} unidades con tasa de basura (${pct(unidades.length - sinTasas, unidades.length)})`,
-  `- Tasas huérfanas (en Padrón pero no en IBIU): ${tasasHuérfanas}`,
   `- Habitantes ↔ portales catastrales: ${totalMatched}/${totalAlta} (${pct(totalMatched, totalAlta)})`,
   `    · únicos: ${mUnique}  ·  ambiguos (>1 parcela): ${mAmbig}`,
   `    · resueltos por fuzzy: ${mFuzzy}  ·  con letra de portal: ${mLetter}`,
@@ -607,7 +562,6 @@ const report = [
   '',
   `- Valor catastral total: **${totalValorCat.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €**`,
   `- Cuota IBI total 2024: **${totalIbi.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €**`,
-  `- Tasa basura total: **${totalTasa.toLocaleString('es-ES', { minimumFractionDigits: 2 })} €**`,
   `- Habitantes asignados a parcelas: **${totalHabAsig.toFixed(0)}** de ${totalAlta} (${pct(totalHabAsig, totalAlta)})`,
   '',
   '## Distribución por uso (unidades catastrales)',
@@ -635,7 +589,7 @@ const report = [
   '',
   `- \`data/_privado/inmuebles_titular.csv\` — IBIU con NIF y nombre del titular`,
   `- \`data/_privado/habitantes_geocodificados.csv\` — cada habitante con su refcat14`,
-  `- \`data/_privado/personas_dni.csv\` — DB cruzada por documento (DNI/NIF) entre las 3 fuentes`,
+  `- \`data/_privado/personas_dni.csv\` — DB cruzada por documento (DNI/NIF) entre IBIU y Padrón Habitantes`,
   '',
   '## Cómo se usa en el mapa',
   '',
@@ -644,8 +598,6 @@ const report = [
   '3. Desplegable "Colorear por columna" — elegir:',
   '   - `valor_catastral_eur` · riqueza catastral por parcela',
   '   - `cuota_ibi_eur` · derrama IBI por parcela',
-  '   - `tasa_basura_eur` · tasa anual',
-  '   - `coste_municipal_total_eur` · IBI + basura',
   '   - `n_unidades` · fragmentación (bloques de pisos)',
   '   - `uso_dominante` · residencial/comercial/almacén/industrial',
   '   - `habitantes_estimados` · densidad empadronados',

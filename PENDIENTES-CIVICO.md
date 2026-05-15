@@ -6,8 +6,7 @@ _Última sesión: 2026-05-15_
 
 Pipeline funcionando end-to-end. Cobertura:
 
-- **IBIU ↔ Padrón Tasas** (refcat 20): 1 788/1 863 unidades unificadas (96 %)
-- **IBIU/Tasas ↔ parcelas.geojson** (refcat 14): 99.8 % de cobertura
+- **IBIU ↔ parcelas.geojson** (refcat 14): 99.8 % de cobertura
 - **Habitantes ↔ parcelas**: **2 005/2 236 = 89.7 %** vía OSM + Nominatim
   - OSM exacto: 1 728
   - OSM fuzzy (±1 portal): 183
@@ -62,8 +61,6 @@ Quedan columnas del IBIU/Padrón que no he expuesto y podrían ser interesantes:
   como `n_exentos`/`n_bonificados`, pero podría desglosarse por motivo.
 - IBIU: la propia mediana del valor catastral por uso es interesante (1 columna
   más en el CSV).
-- Padrón Tasas: tiene IBAN, entidad, oficina del titular — útil para detectar
-  domiciliaciones fallidas si en algún momento se cruza con datos de cobros.
 
 ### 4. DB privada — explotación pendiente
 
