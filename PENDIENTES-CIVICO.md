@@ -90,6 +90,85 @@ Si esto se va a regenerar cada año (IBIU 2025, padrón anual…):
   `data/_nominatim_cache.json`).
 - Documentar en README la fuente exacta de cada XLS y dónde pedirlo.
 
+## 6. Hacia un gemelo digital municipal completo
+
+Hoy el sistema encaja con lo que la literatura llama **"urban information model"**
+o **"digital twin foundational layer"**: capa física multi-escala (parcela →
+edificio → planta → portal) con identificadores estables (refcat 14/20) y capa
+semántica acoplada (valor catastral, IBI, uso, habitantes, propietarios). Es un
+**gemelo digital incipiente**.
+
+Para subir de nivel hacen falta tres saltos:
+
+### 6.1 De snapshot a stream
+
+Hoy se regenera manualmente con `node scripts/unificar-civico.js`. Para que sea
+"vivo":
+
+- **Cron de ingesta** que detecte XLS nuevos en `data/` (cada vez que el ayto
+  exporte IBIU/Padrón) y regenere el pipeline sin intervención.
+- **Telemetría municipal en vivo**, si el ayto tiene acceso:
+  - Lecturas de contadores de agua por inmueble
+  - Consumo eléctrico agregado por sector
+  - Residuos generados (pesaje de contenedores)
+  - Llamadas al 112 / incidencias urbanas
+- **Sincronización con el padrón electrónico** (altas/bajas mensuales) en vez
+  de re-importar XLS anuales.
+- **Alertas hidrológicas** (caudal Alberche, AEMET) integradas con la capa
+  "Zonas inundables" para predicción operativa.
+
+### 6.2 De inventario a simulación
+
+Tenemos el sustrato; falta el motor. Posibles módulos:
+
+- **Simulador fiscal**: "¿qué pasa si el IBI sube un 5 % o cambian las
+  bonificaciones?" — recalcular cuotas por parcela y agregados municipales.
+- **Simulador hidrológico ligero**: cruzar T=10/100/500 con `habitantes_estimados`
+  y `valor_catastral_eur` → cuántas personas + cuánto valor expuesto a cada
+  período de retorno.
+- **Simulador de cobertura de servicios**: para un nuevo punto (colegio, centro
+  médico, parada de bus), calcular cuántos habitantes quedan a < 5/10/15 min
+  caminando, usando red de calles OSM.
+- **Densidad y sobrecarga**: detectar parcelas con `densidad_hab_por_unidad`
+  anómala respecto al uso declarado (posibles infraviviendas o uso turístico
+  no declarado).
+
+### 6.3 De lectura a lazo cerrado
+
+Un gemelo digital maduro **actúa** sobre lo físico. Pasos progresivos:
+
+- **API REST** para que servicios municipales consulten "dame la refcat y datos
+  de la dirección X" — útil para padrón, atención al ciudadano, registro de
+  entrada.
+- **Dashboard operativo** con métricas en vivo (no sólo mapa estático): KPIs
+  fiscales, ocupación, alertas activas.
+- **Integración con expedientes de obras**: cuando se concede una licencia, el
+  modelo sabe qué parcela se verá modificada y avisa al recalcular IBI tras
+  la finalización.
+- **Acoplamiento bidireccional**: el modelo lanza tareas (riego, recogida
+  selectiva, alumbrado) cuando se cumplen condiciones — esto ya es smart-city
+  pura y dura, requiere actuadores físicos.
+
+### 6.4 Estandarización del modelo
+
+- Considerar pasar el output a **CityGML LOD2** (incluye volumetría 3D real
+  de edificios) en vez de GeoJSON puro. Compatible con muchas herramientas
+  europeas de gemelo digital urbano (UDX, Digital Twin Hub UK).
+- Cumplir **INSPIRE Building 3D** completo (hoy usamos sólo BU/CP/AD).
+- Documentar el esquema en un `MODEL.md` con ontología de identificadores
+  y relaciones.
+
+### 6.5 Quick wins de bajo coste
+
+Pasos pequeños que mueven la aguja sin cambios estructurales:
+
+- Añadir **fecha de generación** a cada CSV público → permite versionado.
+- **Tooltip al hover** en el mapa que muestre 3-4 métricas clave sin click.
+- **Exportar PDF de parcela**: ficha de una sola parcela con todos sus
+  atributos + ubicación. Útil para gestión municipal diaria.
+- **Búsqueda por refcat** en la URL: `?refcat=2670101UK5327S` → centra y
+  resalta la parcela.
+
 ## Archivos relevantes
 
 ```
