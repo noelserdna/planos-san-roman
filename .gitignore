@@ -8,3 +8,17 @@ map-*.png
 # GMLs intermedios (se regeneran descomprimiendo data/*.zip)
 data/A.ES.SDGC.*.gml
 data/*.xml
+
+# Fuentes con datos personales (no publicar)
+data/IBIU*.xls
+data/PADRON*.xls
+data/listadoHabitantes*.xlsx
+
+# Salidas privadas con PII (uso interno)
+data/_privado/
+
+# Caches intermedias del pipeline cívico (contienen direcciones del padrón)
+data/_tmp_*.json
+data/_habitantes_geocod_*.json
+data/_nominatim_cache.json
+data/_civic_unificacion_report.md

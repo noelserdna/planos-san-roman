@@ -69,6 +69,10 @@
       <input id="csvUrl" type="text" placeholder="https://docs.google.com/.../pub?output=csv" />
       <button id="csvUrlLoad">Cargar URL</button>
 
+      <button id="civicLoad" style="margin-top:8px;background:#1976d2;color:#fff;border:0;padding:6px 10px;border-radius:4px;cursor:pointer;width:100%">
+        Cargar datos cívicos del municipio (IBI + tasas + habitantes)
+      </button>
+
       <label for="colSelect">Colorear por columna</label>
       <select id="colSelect"><option value="">— sin datos cargados —</option></select>
 
@@ -218,6 +222,8 @@
 
   let data = new Map();
   let activeColumn = '';
+  // Para columnas numéricas: bins cuantílicos calculados al cambiar de columna
+  let activeBins = null; // { breaks: [n1,n2,...], colors: [c1,c2,...], min, max, isNumeric }
 
   function refcatOf(feature) {
     const p = feature.properties || {};
@@ -228,15 +234,71 @@
     for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
     return `hsl(${h % 360}, 65%, 55%)`;
   }
+  // Paleta secuencial 7 colores (viridis-like simplificada)
+  const SEQ_PALETTE = ['#fde725', '#a0da39', '#4ac16d', '#1fa187', '#277f8e', '#365c8d', '#46327e'];
+  function isNumericString(v) {
+    if (v === '' || v == null) return false;
+    const n = Number(v);
+    return isFinite(n);
+  }
+  function detectNumericColumn(col) {
+    let total = 0, numeric = 0;
+    for (const [, row] of data) {
+      const v = row[col];
+      if (v === '' || v == null) continue;
+      total++;
+      if (isNumericString(v)) numeric++;
+    }
+    return total > 0 && numeric / total > 0.9;
+  }
+  function quantileBins(values, n) {
+    const sorted = [...values].sort((a, b) => a - b);
+    const breaks = [];
+    for (let i = 1; i < n; i++) {
+      const q = i / n;
+      const idx = Math.floor(q * (sorted.length - 1));
+      breaks.push(sorted[idx]);
+    }
+    return { breaks, min: sorted[0], max: sorted[sorted.length - 1] };
+  }
+  function colorForNumber(v, bins) {
+    for (let i = 0; i < bins.breaks.length; i++) {
+      if (v <= bins.breaks[i]) return bins.colors[i];
+    }
+    return bins.colors[bins.colors.length - 1];
+  }
+  function rebuildBins() {
+    activeBins = null;
+    if (!activeColumn) return;
+    if (!detectNumericColumn(activeColumn)) return;
+    const values = [];
+    for (const [, row] of data) {
+      const v = row[activeColumn];
+      if (v === '' || v == null) continue;
+      const n = Number(v);
+      if (isFinite(n)) values.push(n);
+    }
+    if (values.length < 5) return;
+    const q = quantileBins(values, SEQ_PALETTE.length);
+    activeBins = { ...q, colors: SEQ_PALETTE, isNumeric: true };
+  }
   function styleFeature(feature) {
     const ref = refcatOf(feature);
     const row = data.get(ref);
     let fill = '#888', weight = 0.5, opacity = 0.35;
     if (activeColumn && row && row[activeColumn] !== undefined && row[activeColumn] !== '') {
-      fill = colorFromString(String(row[activeColumn]));
-      opacity = 0.7; weight = 1;
+      if (activeBins) {
+        const n = Number(row[activeColumn]);
+        if (isFinite(n)) {
+          fill = colorForNumber(n, activeBins);
+          opacity = 0.78; weight = 0.8;
+        }
+      } else {
+        fill = colorFromString(String(row[activeColumn]));
+        opacity = 0.7; weight = 1;
+      }
     } else if (data.size > 0 && row) {
-      fill = '#1976d2'; opacity = 0.4;
+      fill = '#1976d2'; opacity = 0.35;
     }
     return { color: '#222', weight, fillColor: fill, fillOpacity: opacity };
   }
@@ -529,6 +591,7 @@
       sel.appendChild(o);
     }
     activeColumn = '';
+    activeBins = null;
     layer.setStyle(styleFeature);
     renderLegend();
     stats.textContent = `${geojson.features.length} parcelas · ${data.size} filas en CSV · clave: "${refField}"`;
@@ -548,25 +611,63 @@
       applyCsvText(await r.text());
     } catch (e) { alert('Error cargando URL: ' + e.message); }
   });
+  document.getElementById('civicLoad').addEventListener('click', async () => {
+    try {
+      const r = await fetch('data/parcelas_agregadas.csv');
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      applyCsvText(await r.text());
+      // pre-seleccionar columna interesante
+      const sel = document.getElementById('colSelect');
+      const prefer = ['valor_catastral_eur', 'uso_dominante', 'cuota_ibi_eur', 'habitantes_estimados'];
+      for (const c of prefer) {
+        const opt = [...sel.options].find(o => o.value === c);
+        if (opt) { sel.value = c; sel.dispatchEvent(new Event('change')); break; }
+      }
+    } catch (e) { alert('Error cargando data/parcelas_agregadas.csv: ' + e.message); }
+  });
   document.getElementById('colSelect').addEventListener('change', e => {
     activeColumn = e.target.value;
+    rebuildBins();
     layer.setStyle(styleFeature);
     renderLegend();
   });
+  function fmtNumber(n) {
+    if (!isFinite(n)) return String(n);
+    if (Math.abs(n) >= 1000) return n.toLocaleString('es-ES', { maximumFractionDigits: 0 });
+    if (Math.abs(n) >= 10)   return n.toLocaleString('es-ES', { maximumFractionDigits: 1 });
+    return n.toLocaleString('es-ES', { maximumFractionDigits: 2 });
+  }
   function renderLegend() {
     const legend = document.getElementById('legend');
     legend.innerHTML = '';
     if (!activeColumn) return;
+    const title = document.createElement('div');
+    title.style.fontWeight = '600';
+    title.textContent = activeColumn;
+    legend.appendChild(title);
+
+    if (activeBins && activeBins.isNumeric) {
+      // Leyenda numérica: rangos
+      const cuts = [activeBins.min, ...activeBins.breaks, activeBins.max];
+      for (let i = 0; i < activeBins.colors.length; i++) {
+        const lo = cuts[i], hi = cuts[i + 1];
+        const row = document.createElement('div'); row.className = 'row';
+        const sw = document.createElement('span'); sw.className = 'swatch';
+        sw.style.background = activeBins.colors[i];
+        const label = document.createElement('span');
+        label.textContent = `${fmtNumber(lo)} – ${fmtNumber(hi)}`;
+        row.appendChild(sw); row.appendChild(label);
+        legend.appendChild(row);
+      }
+      return;
+    }
+    // Categorical
     const counts = new Map();
     for (const [, row] of data) {
       const v = row[activeColumn] ?? '';
       counts.set(v, (counts.get(v) || 0) + 1);
     }
     const entries = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12);
-    const title = document.createElement('div');
-    title.style.fontWeight = '600';
-    title.textContent = activeColumn;
-    legend.appendChild(title);
     for (const [v, n] of entries) {
       const row = document.createElement('div'); row.className = 'row';
       const sw = document.createElement('span'); sw.className = 'swatch';
